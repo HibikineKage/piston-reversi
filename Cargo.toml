@@ -1,0 +1,7 @@
+[package]
+name = "piston-reversi"
+version = "0.1.0"
+authors = ["Hibikine Kage <goodsmile314159@gmail.com>"]
+
+[dependencies]
+piston_window = "0.70.0"
