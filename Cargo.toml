@@ -5,3 +5,6 @@ authors = ["Hibikine Kage <goodsmile314159@gmail.com>"]
 
 [dependencies]
 piston_window = "0.70.0"
+
+[dependencies.vecmath]
+git = "https://github.com/PistonDevelopers/vecmath"
