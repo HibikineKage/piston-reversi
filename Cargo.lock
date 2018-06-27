@@ -654,6 +654,7 @@ dependencies = [
 name = "piston-reversi"
 version = "0.1.0"
 dependencies = [
+ "arrayvec 0.4.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "piston_window 0.70.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "vecmath 0.3.1 (git+https://github.com/PistonDevelopers/vecmath)",
 ]

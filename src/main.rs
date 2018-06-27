@@ -1,11 +1,11 @@
+extern crate arrayvec;
 extern crate vecmath;
-extern crate ArrayVec;
 
 extern crate piston_window;
 
+use arrayvec::ArrayVec;
 use piston_window::*;
 use vecmath::*;
-use arrayvec::ArrayVec;
 
 const HEIGHT: u32 = 480u32;
 const WIDTH: u32 = 640u32;
@@ -14,7 +14,7 @@ const BOARD_WIDTH: usize = 8;
 const CELL_WIDTH: f64 = HEIGHT as f64 / BOARD_WIDTH as f64;
 const BLACK: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
 const CELL_SPACE: f64 = CELL_WIDTH / 16.0;
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 enum Cell {
     None,
     Black,
@@ -32,7 +32,7 @@ const DIRECTIONS: [Vector2<isize>; 8] = [
     [0, 1],
     [1, -1],
     [1, 0],
-    [1, -1],
+    [1, 1],
 ];
 fn in_available_range(position: [isize; 2]) -> bool {
     0 <= position[0]
@@ -55,17 +55,24 @@ impl Board {
         }
         Some(self.cells[position[0] as usize + position[1] as usize * BOARD_WIDTH])
     }
-    pub fn put(&self, position: [usize; 2], color: &Cell) {
-        if !self.puttable(position, color) {
-            return;
-        }
-        for i in DIRECTIONS.iter() {
+    pub fn put(&mut self, position: [usize; 2], color: &Cell) {
+        self.cells[position[0] + position[1] * BOARD_WIDTH] = *color;
+        let mut count = 0;
+        for i in DIRECTIONS
+            .iter()
+            .zip(self.puttable_directions(position, color).iter())
+        {
             let mut current_position = [position[0] as isize, position[1] as isize];
-            current_position = vec2_add(current_position, *i);
+            for _ in 0..*i.1 {
+                current_position = vec2_add(current_position, *i.0);
+                self.cells
+                    [current_position[0] as usize + current_position[1] as usize * BOARD_WIDTH] =
+                    *color;
+            }
         }
     }
     fn puttable_directions(&self, position: [usize; 2], color: &Cell) -> [u32; 8] {
-        let direction_reverse_counts = ArrayVec::from(DIRECTIONS)
+        let directions: ArrayVec<[u32; 8]> = ArrayVec::from(DIRECTIONS)
             .iter()
             .map(|direction| {
                 let mut current_position = [position[0] as isize, position[1] as isize];
@@ -75,10 +82,10 @@ impl Board {
                     .unwrap_or(Cell::None);
                 match cell {
                     Cell::None => return 0u32,
-                    other_color if *color == other_color => return 0,
+                    other_color if *color == other_color => return 0u32,
                     _ => (),
                 };
-                let mut count = 1;
+                let mut count = 1u32;
                 while {
                     current_position = vec2_add(current_position, *direction);
                     match self
@@ -94,6 +101,8 @@ impl Board {
                 }
                 count
             })
+            .collect();
+        directions.into_inner().unwrap()
     }
     pub fn puttable(&self, position: [usize; 2], color: &Cell) -> bool {
         if let Some(cell) = self.position_to_cell([position[0] as isize, position[1] as isize]) {
@@ -103,8 +112,9 @@ impl Board {
         } else {
             return false;
         }
-        self.puttable_directions()
-            .find(|value| *value == true)
+        self.puttable_directions(position, color)
+            .iter()
+            .find(|value| **value > 0u32)
             .is_some()
     }
 }
@@ -127,7 +137,7 @@ fn main() {
         }
         if let Some(_mouse) = event.press_args() {
             if board.puttable(select_pos, &current_color) {
-                board.cells[select_pos[0] + select_pos[1] * BOARD_WIDTH] = current_color;
+                board.put(select_pos, &current_color);
                 current_color = match current_color {
                     Cell::Black => Cell::White,
                     Cell::White => Cell::Black,
@@ -193,6 +203,7 @@ fn main() {
 mod tests {
     use Board;
     use Cell;
+    use BOARD_WIDTH;
     #[test]
     fn test_puttable() {
         let board = Board::new();
@@ -200,5 +211,15 @@ mod tests {
         assert_eq!(board.puttable([3, 2], &Cell::Black), false);
         assert_eq!(board.puttable([3, 2], &Cell::White), true);
         assert_eq!(board.puttable([4, 2], &Cell::Black), true);
+    }
+    #[test]
+    fn test_put() {
+        let mut board = Board::new();
+        board.put([3, 2], &Cell::White);
+        assert_eq!(board.cells[3 + 2 * BOARD_WIDTH], Cell::White);
+        assert_eq!(board.cells[3 + 3 * BOARD_WIDTH], Cell::White);
+        board.put([2, 2], &Cell::Black);
+        assert_eq!(board.cells[2 + 2 * BOARD_WIDTH], Cell::Black);
+        assert_eq!(board.cells[3 + 3 * BOARD_WIDTH], Cell::Black);
     }
 }
