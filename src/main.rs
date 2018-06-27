@@ -5,7 +5,7 @@ extern crate vecmath;
 extern crate piston_window;
 
 use piston_window::*;
-use vecmath::Vector2;
+use vecmath::*;
 
 const HEIGHT: u32 = 480u32;
 const WIDTH: u32 = 640u32;
@@ -14,7 +14,7 @@ const BOARD_WIDTH: usize = 8;
 const CELL_WIDTH: f64 = HEIGHT as f64 / BOARD_WIDTH as f64;
 const BLACK: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
 const CELL_SPACE: f64 = CELL_WIDTH / 16.0;
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 enum Cell {
     None,
     Black,
@@ -49,17 +49,50 @@ impl Board {
         cells[4 + BOARD_WIDTH * 4] = Cell::Black;
         Self { cells: cells }
     }
-    pub fn puttable(&self, position: [usize; 2]) -> bool {
-        DIRECTIONS.iter().map(|direction| {
-            let mut current_position = [position[0] as isize, position[1] as isize];
-            current_position[0] += direction[0];
-            current_position[1] += direction[1];
-            if !in_available_range(current_position) {
+    pub fn position_to_cell(&self, position: Vector2<isize>) -> Option<Cell> {
+        if !in_available_range(position) {
+            return None;
+        }
+        Some(self.cells[position[0] as usize + position[1] as usize * BOARD_WIDTH])
+    }
+    pub fn puttable(&self, position: [usize; 2], color: &Cell) -> bool {
+        if let Some(cell) = self.position_to_cell([position[0] as isize, position[1] as isize]) {
+            if cell != Cell::None {
                 return false;
             }
-            true
-        });
-        false
+        } else {
+            return false;
+        }
+        DIRECTIONS
+            .iter()
+            .map(|direction| {
+                let mut current_position = [position[0] as isize, position[1] as isize];
+                current_position = vec2_add(current_position, *direction);
+                let cell = self
+                    .position_to_cell(current_position)
+                    .unwrap_or(Cell::None);
+                match cell {
+                    Cell::None => return false,
+                    other_color if *color == other_color => return false,
+                    _ => (),
+                };
+                println!("Hoge");
+                println!("{:?}", direction);
+                while {
+                    current_position = vec2_add(current_position, *direction);
+                    match self
+                        .position_to_cell(current_position)
+                        .unwrap_or(Cell::None)
+                    {
+                        Cell::None => return false,
+                        other_color if *color != other_color => true,
+                        _ => false,
+                    }
+                } {}
+                true
+            })
+            .find(|value| *value == true)
+            .is_some()
     }
 }
 
@@ -68,24 +101,25 @@ fn main() {
         .exit_on_esc(true)
         .build()
         .unwrap();
-    let mut select_pos = [0.0f64; 2];
+    let mut select_pos = [0usize; 2];
     let mut board = Board::new();
     let mut current_color = Cell::Black;
     while let Some(event) = window.next() {
         if let Some(mouse) = event.mouse_cursor_args() {
-            let x_cell = (mouse[0] * 8.0 / HEIGHT as f64).floor();
-            let y_cell = (mouse[1] * 8.0 / HEIGHT as f64).floor();
-            if 0.0 <= x_cell && x_cell < 8.0 && 0.0 <= y_cell && y_cell < 8.0 {
+            let x_cell = (mouse[0] * 8.0 / HEIGHT as f64).floor() as usize;
+            let y_cell = (mouse[1] * 8.0 / HEIGHT as f64).floor() as usize;
+            if x_cell < 8 && y_cell < 8 {
                 select_pos = [x_cell, y_cell];
             }
         }
         if let Some(_mouse) = event.press_args() {
-            board.cells[(select_pos[0] + select_pos[1] * BOARD_WIDTH as f64) as usize] =
-                current_color;
-            current_color = match current_color {
-                Cell::Black => Cell::White,
-                Cell::White => Cell::Black,
-                Cell::None => Cell::Black,
+            if board.puttable(select_pos, &current_color) {
+                board.cells[select_pos[0] + select_pos[1] * BOARD_WIDTH] = current_color;
+                current_color = match current_color {
+                    Cell::Black => Cell::White,
+                    Cell::White => Cell::Black,
+                    Cell::None => Cell::Black,
+                }
             }
         }
         window.draw_2d(&event, |context, graphics| {
@@ -94,8 +128,8 @@ fn main() {
             rectangle(
                 [0.6, 1.0, 0.6, 1.0],
                 [
-                    select_pos[0] * CELL_WIDTH,
-                    select_pos[1] * CELL_WIDTH,
+                    select_pos[0] as f64 * CELL_WIDTH,
+                    select_pos[1] as f64 * CELL_WIDTH,
                     CELL_WIDTH,
                     CELL_WIDTH,
                 ],
@@ -139,5 +173,19 @@ fn main() {
                 });
             }
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use Board;
+    use Cell;
+    #[test]
+    fn test_puttable() {
+        let board = Board::new();
+        assert_eq!(board.puttable([3, 3], &Cell::Black), false);
+        assert_eq!(board.puttable([3, 2], &Cell::Black), false);
+        assert_eq!(board.puttable([3, 2], &Cell::White), true);
+        assert_eq!(board.puttable([4, 2], &Cell::Black), true);
     }
 }
