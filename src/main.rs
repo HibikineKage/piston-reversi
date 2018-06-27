@@ -1,9 +1,11 @@
 extern crate vecmath;
+extern crate ArrayVec;
 
 extern crate piston_window;
 
 use piston_window::*;
 use vecmath::*;
+use arrayvec::ArrayVec;
 
 const HEIGHT: u32 = 480u32;
 const WIDTH: u32 = 640u32;
@@ -53,15 +55,17 @@ impl Board {
         }
         Some(self.cells[position[0] as usize + position[1] as usize * BOARD_WIDTH])
     }
-    pub fn puttable(&self, position: [usize; 2], color: &Cell) -> bool {
-        if let Some(cell) = self.position_to_cell([position[0] as isize, position[1] as isize]) {
-            if cell != Cell::None {
-                return false;
-            }
-        } else {
-            return false;
+    pub fn put(&self, position: [usize; 2], color: &Cell) {
+        if !self.puttable(position, color) {
+            return;
         }
-        DIRECTIONS
+        for i in DIRECTIONS.iter() {
+            let mut current_position = [position[0] as isize, position[1] as isize];
+            current_position = vec2_add(current_position, *i);
+        }
+    }
+    fn puttable_directions(&self, position: [usize; 2], color: &Cell) -> [u32; 8] {
+        let direction_reverse_counts = ArrayVec::from(DIRECTIONS)
             .iter()
             .map(|direction| {
                 let mut current_position = [position[0] as isize, position[1] as isize];
@@ -70,23 +74,36 @@ impl Board {
                     .position_to_cell(current_position)
                     .unwrap_or(Cell::None);
                 match cell {
-                    Cell::None => return false,
-                    other_color if *color == other_color => return false,
+                    Cell::None => return 0u32,
+                    other_color if *color == other_color => return 0,
                     _ => (),
                 };
+                let mut count = 1;
                 while {
                     current_position = vec2_add(current_position, *direction);
                     match self
                         .position_to_cell(current_position)
                         .unwrap_or(Cell::None)
                     {
-                        Cell::None => return false,
+                        Cell::None => return 0u32,
                         other_color if *color != other_color => true,
                         _ => false,
                     }
-                } {}
-                true
+                } {
+                    count += 1;
+                }
+                count
             })
+    }
+    pub fn puttable(&self, position: [usize; 2], color: &Cell) -> bool {
+        if let Some(cell) = self.position_to_cell([position[0] as isize, position[1] as isize]) {
+            if cell != Cell::None {
+                return false;
+            }
+        } else {
+            return false;
+        }
+        self.puttable_directions()
             .find(|value| *value == true)
             .is_some()
     }
