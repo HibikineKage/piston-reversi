@@ -1,5 +1,3 @@
-#![feature(globs)]
-
 extern crate vecmath;
 
 extern crate piston_window;
@@ -76,8 +74,6 @@ impl Board {
                     other_color if *color == other_color => return false,
                     _ => (),
                 };
-                println!("Hoge");
-                println!("{:?}", direction);
                 while {
                     current_position = vec2_add(current_position, *direction);
                     match self
