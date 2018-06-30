@@ -1,4 +1,5 @@
 extern crate arrayvec;
+extern crate find_folder;
 extern crate vecmath;
 
 extern crate piston_window;
@@ -57,7 +58,6 @@ impl Board {
     }
     pub fn put(&mut self, position: [usize; 2], color: &Cell) {
         self.cells[position[0] + position[1] * BOARD_WIDTH] = *color;
-        let mut count = 0;
         for i in DIRECTIONS
             .iter()
             .zip(self.puttable_directions(position, color).iter())
@@ -104,6 +104,15 @@ impl Board {
             .collect();
         directions.into_inner().unwrap()
     }
+    pub fn count(&self, color: &Cell) -> u32 {
+        let mut count = 0;
+        for i in self.cells.iter() {
+            if i == color {
+                count += 1;
+            }
+        }
+        count
+    }
     pub fn puttable(&self, position: [usize; 2], color: &Cell) -> bool {
         if let Some(cell) = self.position_to_cell([position[0] as isize, position[1] as isize]) {
             if cell != Cell::None {
@@ -119,14 +128,32 @@ impl Board {
     }
 }
 
+fn change_color(color: Cell) -> Cell {
+    match color {
+        Cell::Black => Cell::White,
+        Cell::White => Cell::Black,
+        Cell::None => Cell::Black,
+    }
+}
+
 fn main() {
     let mut window: PistonWindow = WindowSettings::new("Reversi", [WIDTH, HEIGHT])
         .exit_on_esc(true)
         .build()
         .unwrap();
+    let assets = find_folder::Search::ParentsThenKids(3, 3)
+        .for_folder("assets")
+        .unwrap();
+    let ref font = assets.join("PixelMplus10-Regular.ttf");
+    let factory = window.factory.clone();
+    let texture_settings = TextureSettings::new();
+    let mut glyphs = Glyphs::new(font, factory, texture_settings).unwrap();
     let mut select_pos = [0usize; 2];
     let mut board = Board::new();
     let mut current_color = Cell::Black;
+    let mut game_end = false;
+    let mut black_count = 0;
+    let mut white_count = 0;
     while let Some(event) = window.next() {
         if let Some(mouse) = event.mouse_cursor_args() {
             let x_cell = (mouse[0] * 8.0 / HEIGHT as f64).floor() as usize;
@@ -136,12 +163,27 @@ fn main() {
             }
         }
         if let Some(_mouse) = event.press_args() {
-            if board.puttable(select_pos, &current_color) {
-                board.put(select_pos, &current_color);
-                current_color = match current_color {
-                    Cell::Black => Cell::White,
-                    Cell::White => Cell::Black,
-                    Cell::None => Cell::Black,
+            if !game_end {
+                if board.puttable(select_pos, &current_color) {
+                    board.put(select_pos, &current_color);
+                    black_count = board.count(&Cell::Black);
+                    white_count = board.count(&Cell::White);
+                    current_color = change_color(current_color);
+                    if (0..(BOARD_WIDTH * BOARD_WIDTH))
+                        .map(|i| board.puttable([i % 8, i / 8], &current_color))
+                        .find(|puttable| *puttable)
+                        .is_none()
+                    {
+                        current_color = change_color(current_color);
+                        if (0..(BOARD_WIDTH * BOARD_WIDTH))
+                            .map(|i| board.puttable([i % 8, i / 8], &current_color))
+                            .find(|puttable| *puttable)
+                            .is_none()
+                        {
+                            game_end = true;
+                            continue;
+                        }
+                    }
                 }
             }
         }
@@ -194,6 +236,29 @@ fn main() {
                     );
                     Some(color)
                 });
+            }
+            // draw text
+            if game_end {
+                {
+                    let transform = context.transform.trans(HEIGHT as f64 + 3.0, 40.0);
+                    text::Text::new_color([0.0, 0.0, 0.0, 1.0], 32).draw(
+                        "GAME END",
+                        &mut glyphs,
+                        &context.draw_state,
+                        transform,
+                        graphics,
+                    )
+                }
+            }
+            {
+                let transform = context.transform.trans(HEIGHT as f64 + 20.0, 80.0);
+                text::Text::new_color([0.0, 0.0, 0.0, 1.0], 32).draw(
+                    &format!("{} - {}", black_count, white_count),
+                    &mut glyphs,
+                    &context.draw_state,
+                    transform,
+                    graphics,
+                )
             }
         });
     }

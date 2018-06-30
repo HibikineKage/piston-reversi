@@ -5,7 +5,11 @@ authors = ["Hibikine Kage <goodsmile314159@gmail.com>"]
 
 [dependencies]
 piston_window = "0.70.0"
+find_folder = "*"
 arrayvec = "0.4.7"
 
 [dependencies.vecmath]
 git = "https://github.com/PistonDevelopers/vecmath"
+
+[profile.release]
+opt-level = 3
